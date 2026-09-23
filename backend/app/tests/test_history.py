@@ -69,3 +69,34 @@ def test_rerun_inserts_new_record_without_touching_old():
     assert _count(conn) == n + 1
     assert s.history_detail(rid) == before
     conn.close(); s.close()
+
+def test_readonly_rerun_with_loan_id_does_not_overwrite():
+    s = _svc()
+    rid = s.schedule(1_000_000, 3.5, 360, 1, True)["run_id"]
+    conn = connect()
+    before = runs.get(conn, rid)["result_json"]
+    n = _count(conn)
+    # 改利率后的只读重测（同贷款详情页路径），不得写库
+    out = s.schedule(1_000_000, 9.0, 360, 1, False)
+    assert out["run_id"] is None
+    assert _count(conn) == n
+    assert runs.get(conn, rid)["result_json"] == before
+    conn.close()
+    d = s.history_detail(rid)
+    assert d["monthly_payment"] == 4490.45
+    s.close()
+
+def test_detail_ignores_loan_rate_change_and_keeps_store():
+    s = _svc()
+    rid = s.schedule(1_000_000, 3.5, 360, 1, True)["run_id"]
+    conn = connect()
+    conn.execute("UPDATE loans SET annual_rate=99 WHERE id=1")
+    conn.commit()
+    before = runs.get(conn, rid)["result_json"]
+    conn.close()
+    d = s.history_detail(rid)
+    assert d["monthly_payment"] == 4490.45
+    conn = connect()
+    assert runs.get(conn, rid)["result_json"] == before
+    conn.close(); s.close()
+

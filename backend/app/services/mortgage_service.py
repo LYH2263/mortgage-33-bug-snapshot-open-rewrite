@@ -23,12 +23,10 @@ class MortgageService:
                 "created_at": r["created_at"], "monthly_payment": result.get("monthly_payment")})
         return items
     def history_detail(self, run_id):
-        from app.services.snapshot_refresh import recompute_with_loan_rate, write_through
         row = runs.get(self._c, run_id)
         if row is None:
             return None
-        result = recompute_with_loan_rate(self._c, row)
-        write_through(self._c, run_id, result)
+        result = _stored(row.get("result_json"))
         return {"id": row["id"], "kind": row["kind"], "loan_id": row["loan_id"], "created_at": row["created_at"],
             "input": _stored(row.get("input_json")),
             "monthly_payment": result.get("monthly_payment"),
@@ -39,12 +37,7 @@ class MortgageService:
         out = {k: full[k] for k in ("monthly_payment", "total_interest", "total_payment")}
         out["preview"] = full["rows"][:preview_rows]
         out["row_count"] = len(full["rows"])
-        rid = None
-        if persist:
-            rid = runs.insert(self._c, "schedule", {"principal": principal, "annual_rate": annual_rate, "months": months}, out, loan_id)
-        elif loan_id is not None:
-            from app.services.snapshot_refresh import touch_latest_run_for_loan
-            touch_latest_run_for_loan(self._c, loan_id, out)
+        rid = runs.insert(self._c, "schedule", {"principal": principal, "annual_rate": annual_rate, "months": months}, out, loan_id) if persist else None
         return {"run_id": rid, **out}
     def dashboard(self):
         items = loans.list_all(self._c)
