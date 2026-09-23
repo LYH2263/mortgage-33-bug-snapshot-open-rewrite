@@ -10,10 +10,3 @@ def get(conn, run_id):
     return dict(r) if r else None
 def list_recent(conn, limit=50):
     return [dict(r) for r in conn.execute("SELECT * FROM calc_runs ORDER BY id DESC LIMIT ?", (limit,)).fetchall()]
-
-def replace_result(conn, run_id: int, result: dict) -> None:
-    conn.execute(
-        "UPDATE calc_runs SET result_json=? WHERE id=?",
-        (json.dumps(result, ensure_ascii=False), run_id),
-    )
-    conn.commit()
